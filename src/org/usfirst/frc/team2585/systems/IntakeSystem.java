@@ -4,17 +4,18 @@ import org.impact2585.lib2585.RampedSpeedController;
 import org.usfirst.frc.team2585.robot.Environment;
 import org.usfirst.frc.team2585.robot.RobotMap;
 
+import edu.wpi.first.wpilibj.Spark;
+
 
 /**
  * This system intakes the power cubes and loads them on the robot
  */
 public class IntakeSystem extends RobotSystem implements Runnable {
-
 	RampedSpeedController intakeMotorRight;
 	RampedSpeedController intakeMotorLeft;
 
 	// These numbers need to be adjusted after testing
-	static double motorSpeed = 0.9;
+	static final double MAX_MOTOR_SPEED = 0.65;
 
 
 	/* (non-Javadoc)
@@ -23,9 +24,8 @@ public class IntakeSystem extends RobotSystem implements Runnable {
 	@Override
 	public void init(Environment environ) {
 		super.init(environ);
-
-		intakeMotorRight = new RampedSpeedController(RobotMap.INTAKE_MOTOR_RIGHT);
-		intakeMotorLeft = new RampedSpeedController(RobotMap.INTAKE_MOTOR_LEFT);
+		intakeMotorRight = new RampedSpeedController(new Spark(RobotMap.INTAKE_MOTOR_RIGHT));
+		intakeMotorLeft = new RampedSpeedController(new Spark(RobotMap.INTAKE_MOTOR_LEFT));
 	}
 
 	/* (non-Javadoc)
@@ -42,7 +42,7 @@ public class IntakeSystem extends RobotSystem implements Runnable {
 		}
 		// outtake and reverse motors if right trigger is pressed
 		else if (input.shouldOuttake()) {
-			depositCube();
+			outtakeCube();
 		}
 		else {
 			setMotorSpeed(0);
@@ -53,22 +53,22 @@ public class IntakeSystem extends RobotSystem implements Runnable {
 	 * Intake a cube by running the motors in the intake direction
 	 */
 	public void intakeCube() {
-		setMotorSpeed(motorSpeed);
+		setMotorSpeed(MAX_MOTOR_SPEED);
 	}
 	
 	/**
 	 * Deposit a cube by running the motors in the outtake direction
 	 */
-	public void depositCube() {
-		setMotorSpeed(-motorSpeed);
+	public void outtakeCube() {
+		setMotorSpeed(-MAX_MOTOR_SPEED);
 	}
 
 	/**
 	 * @param intakeSpeed is the speed to set the motor to
 	 */
 	public void setMotorSpeed(double intakeSpeed) {
-		intakeMotorRight.updateWithSpeed(-intakeSpeed);
-		intakeMotorLeft.updateWithSpeed(intakeSpeed);
+		intakeMotorLeft.updateWithSpeed(-intakeSpeed);
+		intakeMotorRight.updateWithSpeed(intakeSpeed);
 	}
 
 	/* (non-Javadoc)
@@ -76,8 +76,9 @@ public class IntakeSystem extends RobotSystem implements Runnable {
 	 */
 	@Override
 	public void destroy() {
-		intakeMotorRight.destroy();
+		stop();
 		intakeMotorLeft.destroy();
+		intakeMotorRight.destroy();
 	}
 
 	/* (non-Javadoc)
@@ -85,8 +86,8 @@ public class IntakeSystem extends RobotSystem implements Runnable {
 	 */
 	@Override
 	public void stop() {
-		intakeMotorRight.updateWithSpeed(0);
 		intakeMotorLeft.updateWithSpeed(0);
+		intakeMotorRight.updateWithSpeed(0);
 	}
 
 }

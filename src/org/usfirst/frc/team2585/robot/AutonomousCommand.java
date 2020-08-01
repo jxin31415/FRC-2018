@@ -21,7 +21,12 @@ public abstract class AutonomousCommand {
 	 */
 	public void updateGameData() {
 		// Location of the driverStation: 1, 2, 3; L, M, R
-		location = DriverStation.getInstance().getLocation(); 
+		// ==================================================
+		// Edit here to change location
+		location = 2;//DriverStation.getInstance().getLocation(); 
+		// ==================================================
+		
+		
 		gameData = DriverStation.getInstance().getGameSpecificMessage();
 	
 		SmartDashboard.putNumber("GAME DATA: LOCATION", location);

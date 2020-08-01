@@ -4,14 +4,21 @@ import org.impact2585.lib2585.RampedSpeedController;
 import org.usfirst.frc.team2585.robot.Environment;
 import org.usfirst.frc.team2585.robot.RobotMap;
 
+import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.Talon;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
 /**
  * This system grabs onto a bar and lifts the robot up.
  */
 public class ClimbSystem extends RobotSystem {
+	DigitalInput limitSwitchExtender;
 	
-	RampedSpeedController climbMotor;
+	static double MAX_MOTOR_SPEED = 0.65;
 	
-	static double motorSpeed = 0.5;
+	RampedSpeedController climbMotorLeft;
+	RampedSpeedController climbMotorRight;
+	RampedSpeedController hookExtender;
 	
 	/* (non-Javadoc)
 	 * @see org.usfirst.frc.team2585.systems.RobotSystem#init(org.usfirst.frc.team2585.robot.Environment)
@@ -19,16 +26,12 @@ public class ClimbSystem extends RobotSystem {
 	@Override
 	public void init(Environment environ) {
 		super.init(environ);
-
-		climbMotor = new RampedSpeedController (RobotMap.CLIMB_MOTOR);
-	}
-
-	/* (non-Javadoc)
-	 * @see org.impact2585.lib2585.Destroyable#destroy()
-	 */
-	@Override
-	public void destroy() {
-		climbMotor.destroy();
+	
+		climbMotorLeft = new RampedSpeedController (new Talon(RobotMap.CLIMB_MOTOR_LEFT));
+		climbMotorRight = new RampedSpeedController (new Talon(RobotMap.CLIMB_MOTOR_RIGHT));
+		
+		hookExtender = new RampedSpeedController (new Talon(RobotMap.HOOK_EXTENDER_MOTOR));
+		
 	}
 
 	/* (non-Javadoc)
@@ -36,25 +39,41 @@ public class ClimbSystem extends RobotSystem {
 	 */
 	@Override
 	public void run() {
-		if(input.shouldClimb() && input.shouldRetractArm()){
-			//return if both buttons are pressed
-			return;
+		if(input.shouldClimb() && input.shouldRewind()) {
+			setClimbMotorSpeed(0);
 		} else if(input.shouldClimb()){
-			//climb by turning motor if Y button is pressed
-			setMotorSpeed(motorSpeed);
-		} else if(input.shouldRetractArm()){
-			//turn the arm the other way in case of a screw-up
-			setMotorSpeed(-motorSpeed);
+			setClimbMotorSpeed(MAX_MOTOR_SPEED);
+		} else if (input.shouldRewind()) {
+			setClimbMotorSpeed(-MAX_MOTOR_SPEED);
 		} else {
-			setMotorSpeed(0);
+			setClimbMotorSpeed(0);
+		}
+		
+		if (input.shouldExtendHook() && input.shouldRetractHook()) {
+			setHookExtenderSpeed(0);
+		} else if (input.shouldExtendHook()) {
+			setHookExtenderSpeed(MAX_MOTOR_SPEED);
+		} else if (input.shouldRetractHook()){
+			setHookExtenderSpeed(-MAX_MOTOR_SPEED);
+		} else {
+			setHookExtenderSpeed(0);
 		}
 	}
 	
 	/**
 	 * @param speed the speed to ramp the motor to
 	 */
-	public void setMotorSpeed(double speed) {
-		climbMotor.updateWithSpeed(speed);
+	public void setClimbMotorSpeed(double speed) {
+		climbMotorLeft.updateWithSpeed(speed);
+		climbMotorRight.updateWithSpeed(-speed);
+	}
+	
+	/**
+	 * @param speed the speed to set the hook extending motor to
+	 */
+	public void setHookExtenderSpeed(double speed) {
+		SmartDashboard.putNumber("HOOK EXTENDER", speed);
+		hookExtender.updateWithSpeed(speed);
 	}
 
 	/* (non-Javadoc)
@@ -62,6 +81,18 @@ public class ClimbSystem extends RobotSystem {
 	 */
 	@Override
 	public void stop() {
-		climbMotor.updateWithSpeed(0);
+		climbMotorLeft.updateWithSpeed(0);
+		climbMotorRight.updateWithSpeed(0);
+	}
+	
+	/* (non-Javadoc)
+	 * @see org.impact2585.lib2585.Destroyable#destroy()
+	 */
+	@Override
+	public void destroy() {
+		stop();
+		climbMotorLeft.destroy();
+		climbMotorRight.destroy();
+		hookExtender.destroy();
 	}
 }

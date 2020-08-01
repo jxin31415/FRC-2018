@@ -1,5 +1,6 @@
 package org.usfirst.frc.team2585.robot;
 
+import org.usfirst.frc.team2585.systems.CubeLiftSystem;
 import org.usfirst.frc.team2585.systems.IntakeSystem;
 import org.usfirst.frc.team2585.systems.WheelSystem;
 
@@ -12,9 +13,14 @@ public class Commands {
 	
 	private static Environment environ;
 	private static WheelSystem drivetrain;
+	private static CubeLiftSystem cubeLift;
 	private static IntakeSystem intake;
 	
-	private static final double METERS_PER_SECOND = 0.865; // ROBOT SPEED in  m/s
+	private static final double ANGLE_TOLERANCE = 25.0;
+	
+	private static final double METERS_PER_SECOND = 1.19; // ROBOT SPEED in  m/s
+	private static final double ROBOT_LENGTH = 1.0668; // LENGTH OF THE ROBOT PLUS THE BUMPERS
+	private static final int MAX_TURN_TIME = 2000;
 	
 	/**
 	 * Constructor that sets the environment and the required systems
@@ -24,6 +30,7 @@ public class Commands {
 		environ = env;
 
 		drivetrain = (WheelSystem) environ.getSystem(Environment.WHEEL_SYSTEM);
+		cubeLift = (CubeLiftSystem) environ.getSystem(Environment.CUBE_LIFT_SYSTEM);
 		intake = (IntakeSystem) environ.getSystem(Environment.INTAKE_SYSTEM);
 	}
 	
@@ -31,7 +38,7 @@ public class Commands {
 	 * Move the robot forward with no rotation
 	 */
 	private static void driveForward() {
-		drivetrain.driveWithGyro(0.25, 0.0);
+		drivetrain.driveWithGyro(-0.41, 0.0); // -0.40 is original
 	}
 	
 	/**
@@ -59,14 +66,30 @@ public class Commands {
 	 * Set the forward movement and rotation to 0
 	 */
 	private static void stop() {
-		drivetrain.driveWithGyro(0, 0);
+		drivetrain.stop();
+		cubeLift.stop();
+		intake.stop();
 	}
 	
 	/**
-	 * Use the intake system to deposit a cube
+	 * Use the arm system to deposit a cube
 	 */
 	private static void depositCube() {
-		intake.depositCube();
+		cubeLift.rotateUpSlowly();
+	}
+	
+	/**
+	 * Free the intake system
+	 */
+	private static void runIntake() {
+		intake.intakeCube();
+	}
+
+	/**
+	 * Return the value of the top limit switch
+	 */
+	private static boolean isTopSwitchPressed() {
+		return cubeLift.isTopSwitchPressed();
 	}
 	
 	/**
@@ -82,14 +105,19 @@ public class Commands {
 	 * Autonomous command that drives according to its position and the side of its switch
 	 */
 	public class Main extends AutonomousCommand {
+		private long intakeDelay = 2300;
+		private long armDelay = 1000; //so that the arm can re-intake the cube if it springs loose
 		private long delayTime = 2000;
-		private long timeToDepositCube = 3500;
+		private long timeToDepositCube = 5100;
 		
-		private long middleDistanceToSwitch = distanceToTime(3.556);
-		private long middleLeftSegment = distanceToTime(2.1336);
-		private long middleRightSegment = distanceToTime(0.9144);
-		private long sideDistanceToSwitch = distanceToTime(4.2672);
-		private long distanceInToSwitchFromSide = distanceToTime(0.9144);
+		//private long middleDistanceToSwitch = distanceToTime(3.556-ROBOT_LENGTH);
+		//private long middleLeftSegment = distanceToTime(2.1336);
+		//private long middleRightSegment = distanceToTime(0.9144);
+		private long middleDistanceToSwitch = distanceToTime(4.3); // was 3.85
+		private long middleLeftSegment = distanceToTime(1.7);
+		private long middleRightSegment = distanceToTime(1.7);
+		private long sideDistanceToSwitch = distanceToTime(4.8);
+		private long distanceInToSwitchFromSide = distanceToTime(1.05);
 		
 		private boolean shouldResetTime = false;
 		private boolean onLeftWithSwitch = false; 
@@ -103,7 +131,6 @@ public class Commands {
 		@Override
 		public void updateGameData() {
 			super.updateGameData();
-			
 			tasksComplete = 0;
 			onLeftWithSwitch = gameData.charAt(0) == 'L' && location == 1;
 			onRightWithSwitch = gameData.charAt(0) == 'R' && location == 3;
@@ -126,6 +153,8 @@ public class Commands {
 		private void runStraight(long timeElapsed) {
 			if (timeElapsed < sideDistanceToSwitch) {
 				driveForward();
+				if(timeElapsed > intakeDelay)
+					runIntake();
 			} else {
 				stop();
 			}
@@ -147,9 +176,7 @@ public class Commands {
 			} else {
 				switch (tasksComplete) {
 				case 0: // DELAY
-					if (timeElapsed > delayTime) {
-						markTaskComplete();
-					} 	
+					markTaskComplete();
 					break;
 					
 				case 1: // MOVE FORWARD 
@@ -161,12 +188,16 @@ public class Commands {
 					break;
 					
 				case 2: // ROTATE 
+					if (timeElapsed > MAX_TURN_TIME) {
+						markTaskComplete();
+						break;
+					}
 					if (leftSwitch) { // Switch on left side
-						if (turnLeft() < 0.5) { // Turn left
+						if (turnLeft() < ANGLE_TOLERANCE) { // Turn left
 							markTaskComplete();
 						}
 					} else if (rightSwitch) { // Switch on right side
-						if (turnRight() < 0.5) { // Turn right
+						if (turnRight() < ANGLE_TOLERANCE) { // Turn right
 							markTaskComplete();
 						}
 					}
@@ -189,7 +220,11 @@ public class Commands {
 					break;
 					
 				case 4: // ROTATE BACK TO STRAIGHT
-					if (turnStraight() < 0.5) { // turn back to straight
+					if (timeElapsed > MAX_TURN_TIME) {
+						markTaskComplete();
+						break;
+					}
+					if (turnStraight() < ANGLE_TOLERANCE) { // turn back to straight
 						markTaskComplete();
 					}
 					break;
@@ -204,7 +239,12 @@ public class Commands {
 					
 				case 6: // DROP CUBE 
 					if (timeElapsed < timeToDepositCube) {
-						depositCube();
+						if(!isTopSwitchPressed()) {
+							runIntake();
+							if(timeElapsed > armDelay) {
+								depositCube();
+							}
+						}
 					} else {
 						markTaskComplete();
 					}
@@ -234,13 +274,17 @@ public class Commands {
 					break;
 					
 				case 1: // TURN INWARDS
+					if (timeElapsed > MAX_TURN_TIME) {
+						markTaskComplete();
+						break;
+					}
 					SmartDashboard.putString("AUTO STATUS", "TURN IN");
 					if (onLeftWithSwitch) {
-						if(turnRight() < 0.5){ 
+						if(turnRight() < ANGLE_TOLERANCE){ 
 							markTaskComplete();
 						}
 					} else if (onRightWithSwitch) {
-						if(turnLeft() < 0.5){ 
+						if(turnLeft() < ANGLE_TOLERANCE){ 
 							markTaskComplete();
 						}
 					}
@@ -258,7 +302,12 @@ public class Commands {
 				case 3: // DEPOSIT CUBE
 					SmartDashboard.putString("AUTO STATUS", "DEPOSIT");
 					if(timeElapsed < timeToDepositCube) {
-						depositCube();
+						if(!isTopSwitchPressed()) {
+							runIntake();
+							if(timeElapsed > armDelay) {
+								depositCube();
+							}
+						}
 					} else {
 						markTaskComplete();
 					}
@@ -285,6 +334,8 @@ public class Commands {
 			} else if (location == 2) {
 				runFromMiddle(timeElapsed);
 			} else {
+				if(timeElapsed > intakeDelay)
+					runIntake();
 				runStraight(timeElapsed);
 			}
 			return shouldResetTime;
@@ -295,7 +346,8 @@ public class Commands {
 	 * Autonomous command that drives straight no matter what
 	 */
 	public class Straight extends AutonomousCommand {
-		private static final int timeToDriveStraight = 2000;
+		private long timeToDriveStraight = distanceToTime(3.72);
+		private static final int intakeDelay = 500;
 		/* (non-Javadoc)
 		 * @see org.usfirst.frc.team2585.AutonomousCommand#execute(long)
 		 */
@@ -304,6 +356,8 @@ public class Commands {
 			SmartDashboard.putString("AUTO EXECUTOR", "STRAIGHT");
 			if (timeElapsed < timeToDriveStraight) {
 				driveForward();
+				if(timeElapsed > intakeDelay)
+					runIntake();
 			} else {
 				stop();
 			}
@@ -316,6 +370,7 @@ public class Commands {
 	 */
 	public class SpeedTest extends AutonomousCommand {
 		private static final int timeToDriveStraight = 3000;
+		private static final int intakeDelay = 800;
 		/* (non-Javadoc)
 		 * @see org.usfirst.frc.team2585.AutonomousCommand#execute(long)
 		 */
@@ -324,8 +379,10 @@ public class Commands {
 			SmartDashboard.putString("AUTO EXECUTOR", "STRAIGHT");
 			if (timeElapsed < timeToDriveStraight) {
 				driveForward();
-			} else {
-				stop();
+				if(timeElapsed > intakeDelay)
+					runIntake();
+				} else {
+					stop();
 			}
 			return false;
 		}

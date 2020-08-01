@@ -40,11 +40,12 @@ public abstract class InputMethod {
 	}
 	
 	/**
-	 * @return a boolean denoting whether or not the robot's climb arm should return to its original position
+	 * @return a boolean denoting whether or not the robot should rewind the blue thing
 	 */
-	public boolean shouldRetractArm() {
+	public boolean shouldRewind() {
 		return false;
 	}
+	
 	
 	/**
 	 * @return the amount that the robot should drive forward
@@ -61,17 +62,23 @@ public abstract class InputMethod {
 	}
 	
 	/**
-	 * @return whether the drive train should move faster(boost)
+	 * @return whether the hook should extend
 	 */
-	public boolean shouldBoost() {
+	public boolean shouldExtendHook() {
 		return false;
 	}
 	
 	/**
-	 * @return whether the robot gyro should recalibrate
+	 * @return whether the hook should retract
 	 */
-	public boolean shouldCalibrate() {
+	public boolean shouldRetractHook() {
+		return false;
+	}
+	
+	/**
+	 * @return whether the robot turn on/off using the gyro
+	 */
+	public boolean shouldToggleGyro() {
 	 		return false;
-	 	}
-
+	}
 }

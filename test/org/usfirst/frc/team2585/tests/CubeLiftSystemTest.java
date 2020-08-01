@@ -28,6 +28,7 @@ public class CubeLiftSystemTest {
 	public void setUp() {
 		input = new TestInput();
 		cubeLiftSystem = new TestCubeLiftSystem();
+		TestCubeLiftSystem.IS_TEST_SYSTEM = true;
 		cubeLiftSystem.setInput(input);
 		
 		isTopSwitchPressed = false;
@@ -190,7 +191,6 @@ public class CubeLiftSystemTest {
 	 * A testable CubeLiftSystem
 	 */
 	private class TestCubeLiftSystem extends CubeLiftSystem {
-
 		/* (non-Javadoc)
 		 * @see org.usfirst.frc.team2585.systems.CubeLiftSystem#setMotorSpeed(double)
 		 */

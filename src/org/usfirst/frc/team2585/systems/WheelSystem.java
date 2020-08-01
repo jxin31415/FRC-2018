@@ -15,7 +15,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 public class WheelSystem extends RobotSystem {
 	private RampedSpeedController rightDrive;
 	private RampedSpeedController leftDrive;
-	
+
 	private ADXRS450_Gyro gyro;
 	private Ultrasonic ultra;
 	
@@ -23,15 +23,18 @@ public class WheelSystem extends RobotSystem {
 	
 	private final double DEADZONE = 0.2;
 	
-	private final double FORWARD_MULTIPLIER = 0.65;
-	private final double FORWARD_MULTIPLIER_BOOST = 0.8;
+	private final double FORWARD_MULTIPLIER = 0.75;
 	private final double ROTATION_RATE = 4.0;
-	private final double DERIVATIVE_MULTIPLIER = 0.1;
-	private final double CORRECTION_MULTIPLIER = 0.01;
+	private final double DERIVATIVE_MULTIPLIER = 0.08; // originally 0.1
+	private final double CORRECTION_MULTIPLIER = 0.020;
 	private final double MAX_CORRECTION = 0.6;
 	
+	public boolean isUsingGyro = false;
+	public boolean pastToggle = false;
+
 	public static boolean IS_TEST_SYSTEM = false;
-	
+		
+//	private PowerDistributionPanel pdp;
 		
 	/* (non-Javadoc)
 	 * @see org.usfirst.frc.team2585.systems.Initializable#init(org.usfirst.frc.team2585.Environment)
@@ -40,11 +43,13 @@ public class WheelSystem extends RobotSystem {
 	public void init(Environment environ) {
 		super.init(environ);
 
-		leftDrive = new RampedSpeedController(new Spark(RobotMap.LEFT_DRIVE_MOTOR));
 		rightDrive = new RampedSpeedController(new Spark(RobotMap.RIGHT_DRIVE_MOTOR));
+		leftDrive = new RampedSpeedController(new Spark(RobotMap.LEFT_DRIVE_MOTOR));
 		
 		gyro = new ADXRS450_Gyro();
 		targetAngle = getGyroAngle();
+		
+//		pdp = new PowerDistributionPanel();
 		ultra = new Ultrasonic(1,1);
 		ultra.setAutomaticMode(true);
 	}
@@ -53,21 +58,32 @@ public class WheelSystem extends RobotSystem {
 	 * Pass the user inputs to the drive train to run the motors the appropriate amounts
 	 */
 	public void run() {
-		double forwardInput = -input.forwardAmount(); // reverse direction of driving
-		if(input.shouldBoost()){
-			forwardInput = (Math.abs(forwardInput) > DEADZONE)? forwardInput * FORWARD_MULTIPLIER_BOOST : 0;
-		} else {
-			forwardInput = (Math.abs(forwardInput) > DEADZONE)? forwardInput * FORWARD_MULTIPLIER : 0;
-		}
+		double forwardInput = input.forwardAmount();
+		forwardInput = (Math.abs(forwardInput) > DEADZONE)? forwardInput * FORWARD_MULTIPLIER : 0;
 		
 		double rotationInput = input.rotationAmount();
 		rotationInput = (Math.abs(rotationInput) > DEADZONE)? rotationInput : 0;
 		
-		driveWithGyro(forwardInput, rotationInput);
+		if (input.shouldToggleGyro() != pastToggle) {
+			isUsingGyro = !isUsingGyro;
+		} 
+		pastToggle = input.shouldToggleGyro();
 		
-		if (input.shouldCalibrate()) {
-			gyro.calibrate();
-			resetGyro();
+		if (isUsingGyro) {
+			driveWithGyro(forwardInput, rotationInput);
+		} else {
+			driveWithoutGyro(forwardInput, rotationInput);
+		}
+		
+		
+		if (!IS_TEST_SYSTEM) {
+			SmartDashboard.putBoolean("USING GYRO", isUsingGyro);
+			
+//			SmartDashboard.putNumber("PDP: WHEELS, L1", pdp.getCurrent(RobotMap.PDP_LEFT_DRIVE_MOTOR_1));
+//			SmartDashboard.putNumber("PDP: WHEELS, L2", pdp.getCurrent(RobotMap.PDP_LEFT_DRIVE_MOTOR_2));
+//			
+//			SmartDashboard.putNumber("PDP: WHEELS, R1", pdp.getCurrent(RobotMap.PDP_RIGHT_DRIVE_MOTOR_1));
+//			SmartDashboard.putNumber("PDP: WHEELS, R2", pdp.getCurrent(RobotMap.PDP_RIGHT_DRIVE_MOTOR_2));
 		}
 	}
 	
@@ -85,7 +101,7 @@ public class WheelSystem extends RobotSystem {
 		double rate = getGyroRate() * DERIVATIVE_MULTIPLIER;
 		double correction = (getAngleError() - rate) * CORRECTION_MULTIPLIER;
 		
-		// Min correction
+		// Min corrections
 		if (Math.abs(correction) < 0.001) correction = 0;
 		// Max correction
 		if (Math.abs(correction) > MAX_CORRECTION) {
@@ -95,7 +111,7 @@ public class WheelSystem extends RobotSystem {
 		if (!IS_TEST_SYSTEM) {
 			SmartDashboard.putNumber("Gyro Angle",  getGyroAngle());
 			SmartDashboard.putNumber("Gyro Target Angle",  targetAngle);
-			SmartDashboard.putNumber("Gyro Rate",   getGyroAngle());
+			SmartDashboard.putNumber("Gyro Rate",   getGyroRate());
 		}
 		
 		return correction;
@@ -119,6 +135,7 @@ public class WheelSystem extends RobotSystem {
 	 * @param rotationInput the amount to rotate. -1 is clockwise, 1 is counter-clockwise
 	 */
 	public void driveWithoutGyro(double forwardInput, double rotationInput) {
+		resetGyro();
 		arcadeDrive(forwardInput, rotationInput);
 	}
 	
@@ -129,6 +146,7 @@ public class WheelSystem extends RobotSystem {
 	 */
 	public double rotateToAngle(double newTargetAngle){
 		targetAngle = newTargetAngle;
+		//targetAngle = newTargetAngle;
 		
 		double correction = getCorrection();
 		
@@ -137,18 +155,22 @@ public class WheelSystem extends RobotSystem {
 		return getAngleError();
 	}
 	
+	public void setTargetAngle(double newTargetAngle) {
+		targetAngle = newTargetAngle;
+	}
+	
 	/**
 	 * @param leftSpeed the speed to set the left side to
 	 * @param rightSpeed the speed to set the right side to
 	 */
-	private void setSideSpeeds(double leftSpeed, double rightSpeed) {
+	protected void setSideSpeeds(double leftSpeed, double rightSpeed) {
 		if (Math.abs(leftSpeed) > 1) leftSpeed = Math.copySign(1, leftSpeed);
 		if (Math.abs(rightSpeed) > 1) rightSpeed = Math.copySign(1, rightSpeed);
 		
 		// Both sides driving in same direction
-		// If wiring doesn't explicitly compensate for different sides, must make rightSpeed negative
+		// If wiring doesn't explicitly compensate for different sides, must make rightSpeed negative		
 		leftDrive.updateWithSpeed(leftSpeed);
-		rightDrive.updateWithSpeed(rightSpeed);
+		rightDrive.updateWithSpeed(-rightSpeed);
 		
 		if (!IS_TEST_SYSTEM) {
 			SmartDashboard.putNumber("LEFT SPEED RAW", leftSpeed);
@@ -175,22 +197,25 @@ public class WheelSystem extends RobotSystem {
 	 * @return the current angle that the robot is facing from the gyroscope
 	 */
 	protected double getGyroAngle() {
-		return -gyro.getAngle(); // Negated because gyro is facing backwards
+		return -gyro.getAngle(); // negated to make positive counter-clockwise
 	}
 	
 	/**
 	 * @return the rate that the robot is rotating from the gyroscope
 	 */
 	protected double getGyroRate() {
-		return -gyro.getRate(); // Negated because gyro is facing backwards
+		return -gyro.getRate(); // negated to make positive counter-clockwise
 	}
 	
 	/**
 	 * Reset the angle of the gyroscope
 	 */
 	public void resetGyro() {
-		gyro.reset();
-		targetAngle = gyro.getAngle();
+		if (!IS_TEST_SYSTEM) {
+			gyro.reset();
+		}
+		
+		targetAngle = getGyroAngle();
 	}
 	
 	/**
@@ -213,6 +238,7 @@ public class WheelSystem extends RobotSystem {
 	 */
 	@Override
 	public void destroy() {
+		stop();
 		leftDrive.destroy();
 		rightDrive.destroy();
 	}
