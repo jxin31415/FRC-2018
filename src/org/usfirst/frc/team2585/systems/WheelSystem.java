@@ -6,6 +6,7 @@ import org.usfirst.frc.team2585.robot.RobotMap;
 
 import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.Spark;
+import edu.wpi.first.wpilibj.Ultrasonic;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
@@ -16,6 +17,7 @@ public class WheelSystem extends RobotSystem {
 	private RampedSpeedController leftDrive;
 
 	private ADXRS450_Gyro gyro;
+	private Ultrasonic ultra;
 	
 	private double targetAngle = 0.0;
 	
@@ -48,6 +50,8 @@ public class WheelSystem extends RobotSystem {
 		targetAngle = getGyroAngle();
 		
 //		pdp = new PowerDistributionPanel();
+		ultra = new Ultrasonic(1,1);
+		ultra.setAutomaticMode(true);
 	}
 	
 	/**
@@ -212,6 +216,13 @@ public class WheelSystem extends RobotSystem {
 		}
 		
 		targetAngle = getGyroAngle();
+	}
+	
+	/**
+	 * Get range from ultrasonic
+	 */
+	public double getRange() {
+		return ultra.getRangeMM();
 	}
 	
 	/* (non-Javadoc)
